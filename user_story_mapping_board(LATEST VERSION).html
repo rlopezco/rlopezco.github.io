@@ -1,0 +1,1184 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Agile User Story Mapping Board</title>
+    <!-- Tailwind CSS CDN -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Lucide Icons -->
+    <script src="https://unpkg.com/lucide@latest"></script>
+    <!-- Font Awesome -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <style>
+        /* Custom Scrollbars for board view */
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .drag-over {
+            background-color: rgba(224, 242, 254, 0.6) !important;
+            border: 2px dashed #0284c7 !important;
+        }
+        .card-ghost {
+            opacity: 0.4;
+        }
+    </style>
+</head>
+<body class="bg-slate-100 font-sans text-slate-800 antialiased min-h-screen flex flex-col">
+
+    <!-- Header / Navbar -->
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap items-center justify-between gap-4">
+            <div class="flex items-center space-x-3">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white">
+                    <i class="fa-solid fa-map-location-dot text-xl"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight">StoryMapper Pro</h1>
+                    <p class="text-xs text-slate-400">Interactive Agile Story Mapping Board</p>
+                </div>
+            </div>
+
+            <!-- Controls & Filters -->
+            <div class="flex flex-wrap items-center gap-2">
+                <!-- Search -->
+                <div class="relative">
+                    <i class="fa-solid fa-magnifying-glass absolute left-3 top-2.5 text-slate-400 text-xs"></i>
+                    <input type="text" id="searchInput" oninput="applyFilters()" placeholder="Search stories, priority..." 
+                           class="bg-slate-800 text-xs text-white pl-8 pr-3 py-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-48">
+                </div>
+
+                <!-- Priority Filter -->
+                <input type="text" id="filterPriority" oninput="applyFilters()" placeholder="Filter priority (e.g. P1, Must)..." class="bg-slate-800 text-xs text-slate-200 px-2.5 py-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500 w-44">
+
+                <!-- Status Filter -->
+                <select id="filterStatus" onchange="applyFilters()" class="bg-slate-800 text-xs text-slate-200 px-2.5 py-1.5 rounded-md focus:outline-none focus:ring-2 focus:ring-indigo-500">
+                    <option value="">All Statuses</option>
+                    <option value="To Do">To Do</option>
+                    <option value="In Progress">In Progress</option>
+                    <option value="Done">Done</option>
+                </select>
+
+                <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+                <!-- Action Buttons -->
+                <button onclick="openActivityModal()" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs px-3 py-1.5 rounded-md font-medium transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-plus text-xs"></i> Activity
+                </button>
+                <button onclick="openReleaseModal()" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs px-3 py-1.5 rounded-md font-medium transition flex items-center gap-1.5">
+                    <i class="fa-solid fa-layer-group text-xs"></i> Release
+                </button>
+
+                <div class="h-5 w-px bg-slate-700 mx-1"></div>
+
+                <!-- Import / Export -->
+                <button onclick="exportJSON()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-2.5 py-1.5 rounded-md transition" title="Export Board as JSON">
+                    <i class="fa-solid fa-download"></i> Export
+                </button>
+                <label class="bg-slate-800 hover:bg-slate-700 text-slate-200 text-xs px-2.5 py-1.5 rounded-md transition cursor-pointer" title="Import JSON">
+                    <i class="fa-solid fa-upload"></i> Import
+                    <input type="file" id="importFileInput" onchange="importJSON(event)" class="hidden" accept=".json">
+                </label>
+                <button onclick="resetToSampleData()" class="bg-rose-900/50 hover:bg-rose-800 text-rose-200 text-xs px-2 py-1.5 rounded-md transition" title="Reset Demo Data">
+                    <i class="fa-solid fa-rotate-left"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <!-- Main Story Mapping View -->
+    <main class="flex-1 overflow-x-auto p-4 md:p-6" id="boardMainContainer">
+        <div id="boardCanvas" class="inline-block min-w-full">
+            <!-- Dynamic Board Rendering Here -->
+        </div>
+    </main>
+
+    <!-- STORY MODAL / DRAWER -->
+    <div id="storyModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 overflow-y-auto">
+        <div class="bg-white rounded-xl shadow-2xl w-full max-w-3xl my-8 overflow-hidden transform transition-all border border-slate-200">
+            <!-- Modal Header -->
+            <div class="bg-slate-900 text-white px-6 py-4 flex items-center justify-between">
+                <div class="flex items-center gap-3">
+                    <span id="modalStoryIdBadge" class="bg-indigo-500/30 text-indigo-200 text-xs font-mono font-bold px-2.5 py-1 rounded-md border border-indigo-400/30">
+                        US-101
+                    </span>
+                    <h3 class="text-lg font-bold text-white">Edit User Story</h3>
+                </div>
+                <button onclick="closeStoryModal()" class="text-slate-400 hover:text-white text-xl transition">
+                    <i class="fa-solid fa-xmark"></i>
+                </button>
+            </div>
+
+            <!-- Modal Form Body -->
+            <form id="storyForm" onsubmit="saveStoryForm(event)" class="p-6 space-y-6 max-h-[80vh] overflow-y-auto">
+                <input type="hidden" id="modalStoryId">
+                <input type="hidden" id="modalTaskId">
+                <input type="hidden" id="modalReleaseId">
+
+                <!-- Title & Key Fields -->
+                <div class="grid grid-cols-1 md:grid-cols-4 gap-4">
+                    <div class="md:col-span-2">
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Story Title *</label>
+                        <input type="text" id="modalStoryTitle" required class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Story Points / Effort</label>
+                        <input type="text" id="modalStoryPoints" placeholder="e.g. 5, S/M/L, 2 Weeks, N/A" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Priority</label>
+                        <input type="text" id="modalStoryPriority" placeholder="e.g. P1, Must, Critical, High" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                </div>
+
+                <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Assignee</label>
+                        <input type="text" id="modalStoryAssignee" placeholder="e.g. Sarah Jenkins" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                    </div>
+                    <div>
+                        <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Status</label>
+                        <select id="modalStoryStatus" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                            <option value="To Do">To Do</option>
+                            <option value="In Progress">In Progress</option>
+                            <option value="Done">Done</option>
+                        </select>
+                    </div>
+                </div>
+
+                <!-- USER STORY SPEC (3Cs - Role, Goal, Benefit) -->
+                <div class="bg-indigo-50/60 border border-indigo-100 rounded-xl p-4 space-y-3">
+                    <h4 class="text-xs font-bold uppercase tracking-wider text-indigo-900 flex items-center gap-2">
+                        <i class="fa-solid fa-user-gear"></i> Story Specification (3Cs - Card)
+                    </h4>
+                    <div class="grid grid-cols-1 md:grid-cols-3 gap-3">
+                        <div>
+                            <label class="block text-xs font-semibold text-indigo-700 mb-1">AS A (User Role)</label>
+                            <input type="text" id="modalSpecAsA" placeholder="e.g. Registered Shopper" class="w-full text-xs bg-white border border-indigo-200 rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-indigo-700 mb-1">I WANT (Feature Goal)</label>
+                            <input type="text" id="modalSpecIWant" placeholder="e.g. to save my address" class="w-full text-xs bg-white border border-indigo-200 rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                        <div>
+                            <label class="block text-xs font-semibold text-indigo-700 mb-1">SO THAT (Business Value)</label>
+                            <input type="text" id="modalSpecSoThat" placeholder="e.g. checkout faster next time" class="w-full text-xs bg-white border border-indigo-200 rounded-md px-2.5 py-1.5 focus:ring-2 focus:ring-indigo-500">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- MULTIPLE CONDITIONS OF SATISFACTION / ACCEPTANCE CRITERIA -->
+                <div class="bg-emerald-50/60 border border-emerald-100 rounded-xl p-4 space-y-4">
+                    <div class="flex items-center justify-between">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-emerald-900 flex items-center gap-2">
+                            <i class="fa-solid fa-list-check"></i> Acceptance Criteria (Conditions of Satisfaction)
+                        </h4>
+                        <button type="button" onclick="addAcScenario()" class="text-xs bg-emerald-600 hover:bg-emerald-700 text-white font-semibold px-3 py-1 rounded-md transition shadow-sm flex items-center gap-1">
+                            <i class="fa-solid fa-plus text-[10px]"></i> Add Scenario
+                        </button>
+                    </div>
+                    
+                    <div id="modalAcContainer" class="space-y-4">
+                        <!-- Dynamic Acceptance Criteria List -->
+                    </div>
+                </div>
+
+                <!-- DEFINITION OF DONE CHECKLIST -->
+                <div class="border border-slate-200 rounded-xl p-4 bg-slate-50">
+                    <div class="flex items-center justify-between mb-2">
+                        <h4 class="text-xs font-bold uppercase tracking-wider text-slate-700 flex items-center gap-2">
+                            <i class="fa-solid fa-square-check"></i> Definition of Done (DoD) Checklist
+                        </h4>
+                        <button type="button" onclick="addDodItem()" class="text-xs text-indigo-600 font-semibold hover:underline">
+                            + Add DoD Item
+                        </button>
+                    </div>
+                    <div id="modalDodContainer" class="space-y-2">
+                        <!-- Dynamic DoD list -->
+                    </div>
+                </div>
+
+                <!-- Footer / Controls -->
+                <div class="flex items-center justify-between pt-4 border-t border-slate-200">
+                    <button type="button" onclick="deleteCurrentStory()" id="deleteStoryBtn" class="bg-rose-50 hover:bg-rose-100 text-rose-600 text-xs font-semibold px-4 py-2 rounded-lg transition">
+                        <i class="fa-solid fa-trash-can mr-1"></i> Delete Story
+                    </button>
+                    <div class="flex items-center gap-2">
+                        <button type="button" onclick="closeStoryModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg transition">
+                            Cancel
+                        </button>
+                        <button type="submit" class="bg-indigo-600 hover:bg-indigo-700 text-white text-xs font-bold px-6 py-2 rounded-lg shadow-sm transition">
+                            Save Story
+                        </button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- ACTIVITY MODAL -->
+    <div id="activityModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-200">
+            <h3 id="activityModalTitle" class="text-lg font-bold text-slate-900 mb-4">Add User Activity (Backbone)</h3>
+            <form onsubmit="saveActivity(event)" class="space-y-4">
+                <input type="hidden" id="modalActivityId">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Activity Title *</label>
+                    <input type="text" id="modalActivityTitle" required placeholder="e.g. Account Management, Checkout" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" onclick="deleteActivityFromModal()" id="deleteActivityBtn" class="text-xs text-rose-600 font-semibold hover:underline hidden">
+                        Delete Activity
+                    </button>
+                    <div class="flex gap-2 ml-auto">
+                        <button type="button" onclick="closeActivityModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                        <button type="submit" class="bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold px-4 py-2 rounded-lg">Save Activity</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- TASK MODAL -->
+    <div id="taskModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-200">
+            <h3 id="taskModalTitle" class="text-lg font-bold text-slate-900 mb-4">Add User Task (Spine)</h3>
+            <form onsubmit="saveTask(event)" class="space-y-4">
+                <input type="hidden" id="modalTaskIdField">
+                <input type="hidden" id="modalTaskActivityId">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Task Title *</label>
+                    <input type="text" id="modalTaskTitle" required placeholder="e.g. Login, Payment Method" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-teal-500 focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" onclick="deleteTaskFromModal()" id="deleteTaskBtn" class="text-xs text-rose-600 font-semibold hover:underline hidden">
+                        Delete Task
+                    </button>
+                    <div class="flex gap-2 ml-auto">
+                        <button type="button" onclick="closeTaskModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                        <button type="submit" class="bg-teal-600 hover:bg-teal-700 text-white text-xs font-bold px-4 py-2 rounded-lg">Save Task</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- RELEASE MODAL -->
+    <div id="releaseModal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4">
+        <div class="bg-white rounded-xl shadow-xl w-full max-w-md p-6 border border-slate-200">
+            <h3 id="releaseModalTitle" class="text-lg font-bold text-slate-900 mb-4">Add Release Swimlane</h3>
+            <form onsubmit="saveRelease(event)" class="space-y-4">
+                <input type="hidden" id="modalReleaseIdField">
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Release Name *</label>
+                    <input type="text" id="modalReleaseName" required placeholder="e.g. MVP (Release 1.0)" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div>
+                    <label class="block text-xs font-bold uppercase tracking-wider text-slate-600 mb-1">Target Date / Description</label>
+                    <input type="text" id="modalReleaseTarget" placeholder="e.g. Q3 Launch Target" class="w-full text-sm border border-slate-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:outline-none">
+                </div>
+                <div class="flex justify-between items-center pt-2">
+                    <button type="button" onclick="deleteReleaseFromModal()" id="deleteReleaseBtn" class="text-xs text-rose-600 font-semibold hover:underline hidden">
+                        Delete Release
+                    </button>
+                    <div class="flex gap-2 ml-auto">
+                        <button type="button" onclick="closeReleaseModal()" class="px-4 py-2 text-xs font-semibold text-slate-600 hover:bg-slate-100 rounded-lg">Cancel</button>
+                        <button type="submit" class="bg-emerald-600 hover:bg-emerald-700 text-white text-xs font-bold px-4 py-2 rounded-lg">Save Release</button>
+                    </div>
+                </div>
+            </form>
+        </div>
+    </div>
+
+    <!-- JAVASCRIPT APPLICATION LOGIC -->
+    <script>
+        // INITIAL DEMO DATA STORE
+        const DEFAULT_DATA = {
+            activities: [
+                { id: "act-1", title: "User Onboarding & Auth" },
+                { id: "act-2", title: "Product Discovery & Search" },
+                { id: "act-3", title: "Checkout & Fulfillment" }
+            ],
+            tasks: [
+                { id: "task-1", activityId: "act-1", title: "Registration" },
+                { id: "task-2", activityId: "act-1", title: "User Login" },
+                { id: "task-3", activityId: "act-2", title: "Catalog Browsing" },
+                { id: "task-4", activityId: "act-2", title: "Product Filtering" },
+                { id: "task-5", activityId: "act-3", title: "Cart Management" },
+                { id: "task-6", activityId: "act-3", title: "Payment Entry" }
+            ],
+            releases: [
+                { id: "rel-1", name: "Release 1.0 (MVP)", targetDate: "Q3 Target" },
+                { id: "rel-2", name: "Release 2.0 (Enhancements)", targetDate: "Q4 Target" },
+                { id: "rel-3", name: "Future Backlog", targetDate: "Unscheduled" }
+            ],
+            stories: [
+                {
+                    id: "US-101",
+                    taskId: "task-1",
+                    releaseId: "rel-1",
+                    title: "Email & Password Sign Up",
+                    points: "3",
+                    priority: "Must",
+                    status: "Done",
+                    assignee: "Alex Rivera",
+                    spec: { asA: "New visitor", iWant: "to register with email", soThat: "I can save items to my profile" },
+                    acList: [
+                        {
+                            title: "Scenario 1: Successful Registration",
+                            given: "On signup modal with valid details",
+                            when: "Submitting the form",
+                            then: "Account created and welcome email sent"
+                        },
+                        {
+                            title: "Scenario 2: Duplicate Email Error",
+                            given: "Email already registered in system",
+                            when: "Submitting signup form",
+                            then: "Highlight field red with 'Email already exists' message"
+                        }
+                    ],
+                    dod: [
+                        { text: "Unit test coverage >= 80%", done: true },
+                        { text: "Security review completed", done: true }
+                    ]
+                },
+                {
+                    id: "US-102",
+                    taskId: "task-2",
+                    releaseId: "rel-1",
+                    title: "User Login & Session",
+                    points: "2",
+                    priority: "Must",
+                    status: "Done",
+                    assignee: "Alex Rivera",
+                    spec: { asA: "Registered User", iWant: "to log in securely", soThat: "I can view order history" },
+                    acList: [
+                        {
+                            title: "Scenario 1: Valid Credentials",
+                            given: "On login page with registered user credentials",
+                            when: "Entering valid email and password",
+                            then: "Authenticate and redirect to account dashboard"
+                        }
+                    ],
+                    dod: [
+                        { text: "Session timeout verified", done: true }
+                    ]
+                },
+                {
+                    id: "US-103",
+                    taskId: "task-2",
+                    releaseId: "rel-2",
+                    title: "OAuth Google & Apple Login",
+                    points: "5",
+                    priority: "Should",
+                    status: "In Progress",
+                    assignee: "John Doe",
+                    spec: { asA: "Mobile user", iWant: "one-click social login", soThat: "I don't need to remember passwords" },
+                    acList: [
+                        {
+                            title: "Scenario 1: OAuth Flow Success",
+                            given: "On login screen",
+                            when: "Clicking 'Continue with Google'",
+                            then: "Redirect to OAuth prompt and create active session"
+                        }
+                    ],
+                    dod: [
+                        { text: "Google OAuth credentials set", done: false }
+                    ]
+                },
+                {
+                    id: "US-104",
+                    taskId: "task-3",
+                    releaseId: "rel-1",
+                    title: "View Product Detail Page",
+                    points: "3",
+                    priority: "Must",
+                    status: "In Progress",
+                    assignee: "Maria Garcia",
+                    spec: { asA: "Shopper", iWant: "to see product photos & price", soThat: "I can decide whether to purchase" },
+                    acList: [
+                        {
+                            title: "Scenario 1: Product Load",
+                            given: "Clicking a product card in catalog",
+                            when: "Page loads",
+                            then: "Show HD image gallery, price, and stock availability"
+                        }
+                    ],
+                    dod: [
+                        { text: "Responsive on iOS & Android", done: true }
+                    ]
+                },
+                {
+                    id: "US-105",
+                    taskId: "task-4",
+                    releaseId: "rel-2",
+                    title: "Filter by Price & Category",
+                    points: "5",
+                    priority: "Should",
+                    status: "To Do",
+                    assignee: "Unassigned",
+                    spec: { asA: "Bargain Hunter", iWant: "to filter items under $50", soThat: "I stay within budget" },
+                    acList: [
+                        {
+                            title: "Scenario 1: Price Range Filter",
+                            given: "On search catalog",
+                            when: "Applying price slider filter",
+                            then: "Update grid without page reload"
+                        }
+                    ],
+                    dod: [
+                        { text: "URL query param updated", done: false }
+                    ]
+                },
+                {
+                    id: "US-106",
+                    taskId: "task-6",
+                    releaseId: "rel-1",
+                    title: "Stripe Credit Card Checkout",
+                    points: "8",
+                    priority: "Must",
+                    status: "To Do",
+                    assignee: "David Kim",
+                    spec: { asA: "Buyer", iWant: "to pay securely via credit card", soThat: "My order is placed immediately" },
+                    acList: [
+                        {
+                            title: "Scenario 1: Successful Credit Card Authorization",
+                            given: "Items in cart and valid card details entered",
+                            when: "Clicking 'Pay Now'",
+                            then: "Process via Stripe API and show order confirmation page"
+                        },
+                        {
+                            title: "Scenario 2: Card Declined Handling",
+                            given: "Insufficient funds or invalid card info",
+                            when: "Submitting payment",
+                            then: "Display error notice and prompt user to re-enter card"
+                        }
+                    ],
+                    dod: [
+                        { text: "PCI compliance checked", done: false },
+                        { text: "Webhook handler for payment success", done: false }
+                    ]
+                }
+            ]
+        };
+
+        // LOAD DATA FROM LOCAL STORAGE OR FALLBACK
+        let boardData = JSON.parse(localStorage.getItem("story_mapping_board_data")) || DEFAULT_DATA;
+
+        function saveData() {
+            localStorage.setItem("story_mapping_board_data", JSON.stringify(boardData));
+            renderBoard();
+        }
+
+        function resetToSampleData() {
+            if (confirm("Reset board data back to demo setup? Any custom edits will be lost.")) {
+                boardData = JSON.parse(JSON.stringify(DEFAULT_DATA));
+                saveData();
+            }
+        }
+
+        // RENDER BOARD COMPONENT
+        function renderBoard() {
+            const container = document.getElementById("boardCanvas");
+            const searchKeyword = document.getElementById("searchInput")?.value.toLowerCase() || "";
+            const priorityFilter = document.getElementById("filterPriority")?.value || "";
+            const statusFilter = document.getElementById("filterStatus")?.value || "";
+
+            let html = `<div class="inline-flex flex-col min-w-full space-y-4">`;
+
+            // --- HEADER ROW 1: USER ACTIVITIES (BACKBONE) ---
+            html += `<div class="flex gap-4">`;
+            // Sticky Left Header cell
+            html += `<div class="w-48 flex-shrink-0 bg-slate-800 text-slate-300 p-3 rounded-lg flex items-center justify-between shadow-sm">
+                        <span class="font-bold text-xs uppercase tracking-wider"><i class="fa-solid fa-layer-group text-indigo-400 mr-1.5"></i> Backbone</span>
+                        <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">Activities</span>
+                     </div>`;
+
+            boardData.activities.forEach(act => {
+                const actTasks = boardData.tasks.filter(t => t.activityId === act.id);
+                const widthCols = Math.max(actTasks.length, 1);
+                
+                html += `
+                    <div class="bg-blue-600 text-white rounded-lg p-3 shadow-md border border-blue-500 relative group flex items-center justify-between" style="min-width: ${widthCols * 240}px;">
+                        <div class="flex items-center gap-2 overflow-hidden">
+                            <i class="fa-solid fa-cube text-blue-200"></i>
+                            <h3 class="font-bold text-sm truncate" title="${escapeHtml(act.title)}">${escapeHtml(act.title)}</h3>
+                        </div>
+                        <div class="flex items-center gap-1 opacity-80 group-hover:opacity-100 transition">
+                            <button onclick="openTaskModal('${act.id}')" class="text-xs bg-blue-700 hover:bg-blue-800 text-white p-1 rounded" title="Add Task under this activity">
+                                <i class="fa-solid fa-plus"></i>
+                            </button>
+                            <button onclick="openActivityModal('${act.id}')" class="text-xs bg-blue-700 hover:bg-blue-800 text-white p-1 rounded" title="Edit Activity">
+                                <i class="fa-solid fa-pen"></i>
+                            </button>
+                        </div>
+                    </div>`;
+            });
+            html += `</div>`;
+
+            // --- HEADER ROW 2: USER TASKS (SPINE) ---
+            html += `<div class="flex gap-4">`;
+            html += `<div class="w-48 flex-shrink-0 bg-slate-800 text-slate-300 p-3 rounded-lg flex items-center justify-between shadow-sm">
+                        <span class="font-bold text-xs uppercase tracking-wider"><i class="fa-solid fa-list-check text-emerald-400 mr-1.5"></i> Spine</span>
+                        <span class="text-[10px] bg-slate-700 px-2 py-0.5 rounded text-slate-300">Tasks</span>
+                     </div>`;
+
+            boardData.activities.forEach(act => {
+                const actTasks = boardData.tasks.filter(t => t.activityId === act.id);
+                if (actTasks.length === 0) {
+                    html += `<div class="w-[240px] bg-slate-200 border-2 border-dashed border-slate-300 rounded-lg p-3 flex items-center justify-center text-xs text-slate-400 italic">
+                                No tasks added yet
+                             </div>`;
+                } else {
+                    actTasks.forEach(task => {
+                        html += `
+                            <div class="w-[240px] flex-shrink-0 bg-teal-700 text-white rounded-lg p-3 shadow border border-teal-600 relative group flex items-center justify-between">
+                                <div class="flex items-center gap-2 overflow-hidden">
+                                    <i class="fa-solid fa-diagram-next text-teal-200"></i>
+                                    <h4 class="font-semibold text-xs truncate" title="${escapeHtml(task.title)}">${escapeHtml(task.title)}</h4>
+                                </div>
+                                <button onclick="openTaskModal('${act.id}', '${task.id}')" class="text-xs bg-teal-800 hover:bg-teal-900 text-white p-1 rounded opacity-80 group-hover:opacity-100 transition">
+                                    <i class="fa-solid fa-pen"></i>
+                                </button>
+                            </div>`;
+                    });
+                }
+            });
+            html += `</div>`;
+
+            // --- RELEASES / SWIMLANES (STORIES MATRIX) ---
+            boardData.releases.forEach(release => {
+                // Count total stories in release
+                let totalReleaseStories = 0;
+                boardData.stories.forEach(s => {
+                    if (s.releaseId === release.id) totalReleaseStories++;
+                });
+
+                html += `<div class="flex gap-4 items-stretch border-t-2 border-slate-300/80 pt-3">`;
+                
+                // Release Label Sticky Header
+                html += `
+                    <div class="w-48 flex-shrink-0 bg-slate-900 text-white p-3 rounded-lg shadow-sm flex flex-col justify-between border-l-4 border-emerald-500">
+                        <div>
+                            <div class="flex items-center justify-between mb-1">
+                                <span class="font-bold text-xs uppercase tracking-wider text-emerald-400">${escapeHtml(release.name)}</span>
+                                <button onclick="openReleaseModal('${release.id}')" class="text-slate-400 hover:text-white text-xs">
+                                    <i class="fa-solid fa-gear"></i>
+                                </button>
+                            </div>
+                            <p class="text-[11px] text-slate-400 mb-2">${escapeHtml(release.targetDate || '')}</p>
+                        </div>
+                        <div class="bg-slate-800 p-2 rounded text-center">
+                            <span class="text-xs font-bold text-emerald-300">${totalReleaseStories} Stories</span>
+                        </div>
+                    </div>`;
+
+                // Stories for each task under this release
+                boardData.activities.forEach(act => {
+                    const actTasks = boardData.tasks.filter(t => t.activityId === act.id);
+                    if (actTasks.length === 0) {
+                        html += `<div class="w-[240px] flex-shrink-0 bg-slate-200/40 rounded-lg border border-dashed border-slate-300"></div>`;
+                    } else {
+                        actTasks.forEach(task => {
+                            // Filter stories
+                            let taskStories = boardData.stories.filter(s => s.taskId === task.id && s.releaseId === release.id);
+                            
+                            // Apply Search & Filter overrides
+                            if (searchKeyword) {
+                                taskStories = taskStories.filter(s => 
+                                    s.title.toLowerCase().includes(searchKeyword) || 
+                                    s.id.toLowerCase().includes(searchKeyword) ||
+                                    (s.priority && s.priority.toLowerCase().includes(searchKeyword)) ||
+                                    (s.points && String(s.points).toLowerCase().includes(searchKeyword)) ||
+                                    (s.assignee && s.assignee.toLowerCase().includes(searchKeyword))
+                                );
+                            }
+                            if (priorityFilter) {
+                                taskStories = taskStories.filter(s => s.priority && s.priority.toLowerCase().includes(priorityFilter.toLowerCase()));
+                            }
+                            if (statusFilter) {
+                                taskStories = taskStories.filter(s => s.status === statusFilter);
+                            }
+
+                            html += `
+                                <div class="w-[240px] flex-shrink-0 bg-slate-200/60 p-2 rounded-lg border border-slate-300/80 min-h-[140px] flex flex-col gap-2 transition"
+                                     ondragover="handleDragOver(event)"
+                                     ondragleave="handleDragLeave(event)"
+                                     ondrop="handleDrop(event, '${task.id}', '${release.id}')">`;
+
+                            taskStories.forEach(story => {
+                                html += renderStoryCard(story);
+                            });
+
+                            // Add Story Button
+                            html += `
+                                    <button onclick="openStoryModal(null, '${task.id}', '${release.id}')" 
+                                            class="mt-auto w-full py-1.5 border border-dashed border-slate-400/80 hover:border-indigo-500 hover:bg-indigo-50/50 hover:text-indigo-600 rounded-md text-xs font-semibold text-slate-500 transition flex items-center justify-center gap-1">
+                                        <i class="fa-solid fa-plus text-[10px]"></i> Add Story
+                                    </button>
+                                </div>`;
+                        });
+                    }
+                });
+
+                html += `</div>`;
+            });
+
+            html += `</div>`;
+            container.innerHTML = html;
+        }
+
+        // HELPER TO RENDER A SINGLE STORY CARD
+        function renderStoryCard(story) {
+            const priorityVal = story.priority ? String(story.priority) : "Must";
+            const pointsVal = story.points !== undefined && story.points !== null ? String(story.points) : "1";
+
+            let priorityBadge = "bg-slate-100 text-slate-700 border-slate-300";
+            const pLower = priorityVal.toLowerCase();
+            if (pLower.includes("must") || pLower.includes("p1") || pLower.includes("critical") || pLower.includes("high")) {
+                priorityBadge = "bg-rose-100 text-rose-700 border-rose-300";
+            } else if (pLower.includes("should") || pLower.includes("p2") || pLower.includes("med")) {
+                priorityBadge = "bg-amber-100 text-amber-700 border-amber-300";
+            } else if (pLower.includes("could") || pLower.includes("p3") || pLower.includes("low")) {
+                priorityBadge = "bg-blue-100 text-blue-700 border-blue-300";
+            }
+
+            let statusColor = "bg-slate-400";
+            if (story.status === "In Progress") statusColor = "bg-amber-500";
+            if (story.status === "Done") statusColor = "bg-emerald-500";
+
+            // Support backwards compatibility for ac count
+            let acCount = 0;
+            if (Array.isArray(story.acList)) {
+                acCount = story.acList.length;
+            } else if (story.ac && (story.ac.given || story.ac.when || story.ac.then)) {
+                acCount = 1;
+            }
+
+            return `
+                <div draggable="true" 
+                     ondragstart="handleDragStart(event, '${story.id}')" 
+                     ondragend="handleDragEnd(event)"
+                     onclick="openStoryModal('${story.id}')" 
+                     class="bg-white rounded-lg shadow-sm hover:shadow-md border border-slate-200 p-2.5 cursor-pointer transition transform hover:-translate-y-0.5 space-y-2">
+                    
+                    <div class="flex items-center justify-between gap-1 flex-wrap">
+                        <span class="text-[10px] font-mono font-bold text-slate-500">${story.id}</span>
+                        <div class="flex items-center gap-1 flex-wrap">
+                            <span class="text-[10px] px-1.5 py-0.5 rounded font-semibold border max-w-[100px] truncate ${priorityBadge}" title="${escapeHtml(priorityVal)}">
+                                ${escapeHtml(priorityVal)}
+                            </span>
+                            <span class="text-[10px] bg-indigo-50 text-indigo-700 font-bold px-1.5 py-0.5 rounded border border-indigo-200 max-w-[80px] truncate" title="${escapeHtml(pointsVal)}">
+                                ${escapeHtml(pointsVal)}
+                            </span>
+                        </div>
+                    </div>
+
+                    <h5 class="text-xs font-bold text-slate-800 line-clamp-2 leading-snug">${escapeHtml(story.title)}</h5>
+
+                    <div class="flex items-center justify-between text-[10px] text-slate-500 pt-1 border-t border-slate-100">
+                        <span class="text-emerald-700 font-semibold bg-emerald-50 px-1.5 py-0.5 rounded border border-emerald-200/80" title="${acCount} Acceptance Criteria scenarios defined">
+                            <i class="fa-solid fa-list-check mr-0.5"></i> ${acCount} ${acCount === 1 ? 'AC' : 'ACs'}
+                        </span>
+                        <span class="text-slate-400 truncate max-w-[90px]"><i class="fa-regular fa-user mr-0.5"></i> ${escapeHtml(story.assignee || 'Unassigned')}</span>
+                    </div>
+
+                    <div class="flex items-center gap-1 text-[10px]">
+                        <span class="w-2 h-2 rounded-full ${statusColor}"></span>
+                        <span class="font-medium text-slate-600">${story.status || 'To Do'}</span>
+                    </div>
+                </div>
+            `;
+        }
+
+        // --- DRAG & DROP LOGIC ---
+        let draggedStoryId = null;
+
+        function handleDragStart(e, storyId) {
+            draggedStoryId = storyId;
+            e.target.classList.add('card-ghost');
+            e.dataTransfer.effectAllowed = 'move';
+        }
+
+        function handleDragEnd(e) {
+            e.target.classList.remove('card-ghost');
+            draggedStoryId = null;
+        }
+
+        function handleDragOver(e) {
+            e.preventDefault();
+            e.currentTarget.classList.add('drag-over');
+        }
+
+        function handleDragLeave(e) {
+            e.currentTarget.classList.remove('drag-over');
+        }
+
+        function handleDrop(e, taskId, releaseId) {
+            e.preventDefault();
+            e.currentTarget.classList.remove('drag-over');
+            if (!draggedStoryId) return;
+
+            const story = boardData.stories.find(s => s.id === draggedStoryId);
+            if (story) {
+                story.taskId = taskId;
+                story.releaseId = releaseId;
+                saveData();
+            }
+        }
+
+        // --- STORY MODAL LOGIC ---
+        function openStoryModal(storyId = null, taskId = null, releaseId = null) {
+            const modal = document.getElementById("storyModal");
+            const form = document.getElementById("storyForm");
+            
+            if (storyId) {
+                // EDIT EXISTING STORY
+                const story = boardData.stories.find(s => s.id === storyId);
+                if (!story) return;
+
+                document.getElementById("modalStoryIdBadge").innerText = story.id;
+                document.getElementById("modalStoryId").value = story.id;
+                document.getElementById("modalTaskId").value = story.taskId;
+                document.getElementById("modalReleaseId").value = story.releaseId;
+
+                document.getElementById("modalStoryTitle").value = story.title || "";
+                document.getElementById("modalStoryPoints").value = story.points !== undefined ? story.points : "1";
+                document.getElementById("modalStoryPriority").value = story.priority || "Must";
+                document.getElementById("modalStoryAssignee").value = story.assignee || "";
+                document.getElementById("modalStoryStatus").value = story.status || "To Do";
+
+                document.getElementById("modalSpecAsA").value = story.spec?.asA || "";
+                document.getElementById("modalSpecIWant").value = story.spec?.iWant || "";
+                document.getElementById("modalSpecSoThat").value = story.spec?.soThat || "";
+
+                // Migrate legacy single AC format or load acList
+                let acs = story.acList;
+                if (!acs && story.ac) {
+                    acs = [{
+                        title: "Scenario 1",
+                        given: story.ac.given || "",
+                        when: story.ac.when || "",
+                        then: story.ac.then || ""
+                    }];
+                }
+                renderAcList(acs || []);
+
+                renderDodList(story.dod || []);
+                document.getElementById("deleteStoryBtn").classList.remove("hidden");
+            } else {
+                // CREATE NEW STORY
+                const newId = "US-" + (Math.floor(100 + Math.random() * 900));
+                document.getElementById("modalStoryIdBadge").innerText = newId;
+                document.getElementById("modalStoryId").value = newId;
+                document.getElementById("modalTaskId").value = taskId;
+                document.getElementById("modalReleaseId").value = releaseId;
+
+                form.reset();
+                document.getElementById("modalStoryPoints").value = "3";
+                document.getElementById("modalStoryPriority").value = "Must Have";
+                
+                renderAcList([{
+                    title: "Scenario 1: Happy Path",
+                    given: "",
+                    when: "",
+                    then: ""
+                }]);
+
+                renderDodList([
+                    { text: "Code reviewed by peer", done: false },
+                    { text: "Acceptance criteria verified on staging", done: false }
+                ]);
+                document.getElementById("deleteStoryBtn").classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeStoryModal() {
+            document.getElementById("storyModal").classList.add("hidden");
+        }
+
+        // DYNAMIC ACCEPTANCE CRITERIA SCENARIOS LIST LOGIC
+        function renderAcList(acArray) {
+            const container = document.getElementById("modalAcContainer");
+            container.innerHTML = "";
+            if (!acArray || acArray.length === 0) {
+                addAcScenario();
+                return;
+            }
+            acArray.forEach((item, idx) => {
+                addAcScenario(item.title || `Scenario ${idx + 1}`, item.given || "", item.when || "", item.then || "");
+            });
+        }
+
+        function addAcScenario(title = "", given = "", when = "", then = "") {
+            const container = document.getElementById("modalAcContainer");
+            const index = container.children.length + 1;
+            const scenarioTitle = title || `Scenario ${index}`;
+
+            const card = document.createElement("div");
+            card.className = "ac-scenario-card bg-white border border-emerald-200 rounded-lg p-3 space-y-2 shadow-sm relative group";
+            card.innerHTML = `
+                <div class="flex items-center justify-between gap-2 border-b border-emerald-100 pb-1.5">
+                    <input type="text" value="${escapeHtml(scenarioTitle)}" placeholder="Scenario Name (e.g. Save Valid Address)" class="ac-title-input text-xs font-bold text-emerald-900 bg-emerald-50/50 border border-emerald-200/80 rounded px-2 py-1 w-full focus:outline-none focus:ring-1 focus:ring-emerald-500">
+                    <button type="button" onclick="this.closest('.ac-scenario-card').remove()" class="text-slate-400 hover:text-rose-500 text-xs px-1.5 py-0.5 rounded transition" title="Delete Scenario">
+                        <i class="fa-solid fa-trash-can"></i>
+                    </button>
+                </div>
+                <div class="grid grid-cols-1 md:grid-cols-3 gap-2">
+                    <div>
+                        <label class="block text-[10px] font-bold text-emerald-700 uppercase mb-0.5">GIVEN (Context)</label>
+                        <textarea class="ac-given-input w-full text-xs bg-slate-50/80 border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-emerald-500 focus:bg-white resize-none" rows="2" placeholder="e.g. User is logged in">${escapeHtml(given)}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-emerald-700 uppercase mb-0.5">WHEN (Action)</label>
+                        <textarea class="ac-when-input w-full text-xs bg-slate-50/80 border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-emerald-500 focus:bg-white resize-none" rows="2" placeholder="e.g. Clicks save address">${escapeHtml(when)}</textarea>
+                    </div>
+                    <div>
+                        <label class="block text-[10px] font-bold text-emerald-700 uppercase mb-0.5">THEN (Outcome)</label>
+                        <textarea class="ac-then-input w-full text-xs bg-slate-50/80 border border-slate-200 rounded p-1.5 focus:ring-1 focus:ring-emerald-500 focus:bg-white resize-none" rows="2" placeholder="e.g. Toast notice appears">${escapeHtml(then)}</textarea>
+                    </div>
+                </div>
+            `;
+            container.appendChild(card);
+        }
+
+        function renderDodList(dodArray) {
+            const container = document.getElementById("modalDodContainer");
+            container.innerHTML = "";
+            dodArray.forEach((item, idx) => {
+                const div = document.createElement("div");
+                div.className = "flex items-center gap-2";
+                div.innerHTML = `
+                    <input type="checkbox" ${item.done ? 'checked' : ''} class="modal-dod-check rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                    <input type="text" value="${escapeHtml(item.text)}" class="modal-dod-text flex-1 text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                    <button type="button" onclick="this.parentElement.remove()" class="text-slate-400 hover:text-rose-500 text-xs"><i class="fa-solid fa-trash"></i></button>
+                `;
+                container.appendChild(div);
+            });
+        }
+
+        function addDodItem() {
+            const container = document.getElementById("modalDodContainer");
+            const div = document.createElement("div");
+            div.className = "flex items-center gap-2";
+            div.innerHTML = `
+                <input type="checkbox" class="modal-dod-check rounded border-slate-300 text-indigo-600 focus:ring-indigo-500">
+                <input type="text" placeholder="e.g. Acceptance tests passed" class="modal-dod-text flex-1 text-xs border border-slate-300 rounded px-2 py-1 focus:outline-none focus:ring-1 focus:ring-indigo-500">
+                <button type="button" onclick="this.parentElement.remove()" class="text-slate-400 hover:text-rose-500 text-xs"><i class="fa-solid fa-trash"></i></button>
+            `;
+            container.appendChild(div);
+        }
+
+        function saveStoryForm(e) {
+            e.preventDefault();
+            const id = document.getElementById("modalStoryId").value;
+            const taskId = document.getElementById("modalTaskId").value;
+            const releaseId = document.getElementById("modalReleaseId").value;
+
+            // Extract Acceptance Criteria scenarios
+            const acCards = document.querySelectorAll(".ac-scenario-card");
+            const acList = [];
+            acCards.forEach(card => {
+                const title = card.querySelector(".ac-title-input")?.value.trim() || "";
+                const given = card.querySelector(".ac-given-input")?.value.trim() || "";
+                const when = card.querySelector(".ac-when-input")?.value.trim() || "";
+                const then = card.querySelector(".ac-then-input")?.value.trim() || "";
+
+                if (title || given || when || then) {
+                    acList.push({ title, given, when, then });
+                }
+            });
+
+            // Extract DoD items
+            const dodCheckboxes = document.querySelectorAll(".modal-dod-check");
+            const dodTexts = document.querySelectorAll(".modal-dod-text");
+            const dodList = [];
+            dodTexts.forEach((txtInput, idx) => {
+                if (txtInput.value.trim()) {
+                    dodList.push({
+                        text: txtInput.value.trim(),
+                        done: dodCheckboxes[idx]?.checked || false
+                    });
+                }
+            });
+
+            const storyObj = {
+                id: id,
+                taskId: taskId,
+                releaseId: releaseId,
+                title: document.getElementById("modalStoryTitle").value.trim(),
+                points: document.getElementById("modalStoryPoints").value.trim() || "1",
+                priority: document.getElementById("modalStoryPriority").value.trim() || "Must",
+                assignee: document.getElementById("modalStoryAssignee").value.trim() || "Unassigned",
+                status: document.getElementById("modalStoryStatus").value,
+                spec: {
+                    asA: document.getElementById("modalSpecAsA").value.trim(),
+                    iWant: document.getElementById("modalSpecIWant").value.trim(),
+                    soThat: document.getElementById("modalSpecSoThat").value.trim()
+                },
+                acList: acList,
+                dod: dodList
+            };
+
+            const index = boardData.stories.findIndex(s => s.id === id);
+            if (index >= 0) {
+                boardData.stories[index] = storyObj;
+            } else {
+                boardData.stories.push(storyObj);
+            }
+
+            saveData();
+            closeStoryModal();
+        }
+
+        function deleteCurrentStory() {
+            const id = document.getElementById("modalStoryId").value;
+            if (confirm(`Are you sure you want to delete story ${id}?`)) {
+                boardData.stories = boardData.stories.filter(s => s.id !== id);
+                saveData();
+                closeStoryModal();
+            }
+        }
+
+        // --- ACTIVITY MODAL LOGIC ---
+        function openActivityModal(activityId = null) {
+            const modal = document.getElementById("activityModal");
+            const deleteBtn = document.getElementById("deleteActivityBtn");
+
+            if (activityId) {
+                const act = boardData.activities.find(a => a.id === activityId);
+                document.getElementById("modalActivityId").value = act.id;
+                document.getElementById("modalActivityTitle").value = act.title;
+                document.getElementById("activityModalTitle").innerText = "Edit User Activity";
+                deleteBtn.classList.remove("hidden");
+            } else {
+                document.getElementById("modalActivityId").value = "";
+                document.getElementById("modalActivityTitle").value = "";
+                document.getElementById("activityModalTitle").innerText = "Add User Activity (Backbone)";
+                deleteBtn.classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeActivityModal() {
+            document.getElementById("activityModal").classList.add("hidden");
+        }
+
+        function saveActivity(e) {
+            e.preventDefault();
+            const id = document.getElementById("modalActivityId").value;
+            const title = document.getElementById("modalActivityTitle").value.trim();
+
+            if (id) {
+                const act = boardData.activities.find(a => a.id === id);
+                if (act) act.title = title;
+            } else {
+                boardData.activities.push({
+                    id: "act-" + Date.now(),
+                    title: title
+                });
+            }
+
+            saveData();
+            closeActivityModal();
+        }
+
+        function deleteActivityFromModal() {
+            const id = document.getElementById("modalActivityId").value;
+            if (confirm("Deleting this activity will also remove its associated tasks and stories! Continue?")) {
+                const taskIds = boardData.tasks.filter(t => t.activityId === id).map(t => t.id);
+                boardData.stories = boardData.stories.filter(s => !taskIds.includes(s.taskId));
+                boardData.tasks = boardData.tasks.filter(t => t.activityId !== id);
+                boardData.activities = boardData.activities.filter(a => a.id !== id);
+                saveData();
+                closeActivityModal();
+            }
+        }
+
+        // --- TASK MODAL LOGIC ---
+        function openTaskModal(activityId, taskId = null) {
+            const modal = document.getElementById("taskModal");
+            const deleteBtn = document.getElementById("deleteTaskBtn");
+
+            document.getElementById("modalTaskActivityId").value = activityId;
+
+            if (taskId) {
+                const task = boardData.tasks.find(t => t.id === taskId);
+                document.getElementById("modalTaskIdField").value = task.id;
+                document.getElementById("modalTaskTitle").value = task.title;
+                document.getElementById("taskModalTitle").innerText = "Edit User Task";
+                deleteBtn.classList.remove("hidden");
+            } else {
+                document.getElementById("modalTaskIdField").value = "";
+                document.getElementById("modalTaskTitle").value = "";
+                document.getElementById("taskModalTitle").innerText = "Add User Task (Spine)";
+                deleteBtn.classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeTaskModal() {
+            document.getElementById("taskModal").classList.add("hidden");
+        }
+
+        function saveTask(e) {
+            e.preventDefault();
+            const id = document.getElementById("modalTaskIdField").value;
+            const activityId = document.getElementById("modalTaskActivityId").value;
+            const title = document.getElementById("modalTaskTitle").value.trim();
+
+            if (id) {
+                const task = boardData.tasks.find(t => t.id === id);
+                if (task) task.title = title;
+            } else {
+                boardData.tasks.push({
+                    id: "task-" + Date.now(),
+                    activityId: activityId,
+                    title: title
+                });
+            }
+
+            saveData();
+            closeTaskModal();
+        }
+
+        function deleteTaskFromModal() {
+            const id = document.getElementById("modalTaskIdField").value;
+            if (confirm("Deleting this task will remove all story cards under it. Continue?")) {
+                boardData.stories = boardData.stories.filter(s => s.taskId !== id);
+                boardData.tasks = boardData.tasks.filter(t => t.id !== id);
+                saveData();
+                closeTaskModal();
+            }
+        }
+
+        // --- RELEASE MODAL LOGIC ---
+        function openReleaseModal(releaseId = null) {
+            const modal = document.getElementById("releaseModal");
+            const deleteBtn = document.getElementById("deleteReleaseBtn");
+
+            if (releaseId) {
+                const rel = boardData.releases.find(r => r.id === releaseId);
+                document.getElementById("modalReleaseIdField").value = rel.id;
+                document.getElementById("modalReleaseName").value = rel.name;
+                document.getElementById("modalReleaseTarget").value = rel.targetDate || "";
+                document.getElementById("releaseModalTitle").innerText = "Edit Release Swimlane";
+                deleteBtn.classList.remove("hidden");
+            } else {
+                document.getElementById("modalReleaseIdField").value = "";
+                document.getElementById("modalReleaseName").value = "";
+                document.getElementById("modalReleaseTarget").value = "";
+                document.getElementById("releaseModalTitle").innerText = "Add Release Swimlane";
+                deleteBtn.classList.add("hidden");
+            }
+
+            modal.classList.remove("hidden");
+        }
+
+        function closeReleaseModal() {
+            document.getElementById("releaseModal").classList.add("hidden");
+        }
+
+        function saveRelease(e) {
+            e.preventDefault();
+            const id = document.getElementById("modalReleaseIdField").value;
+            const name = document.getElementById("modalReleaseName").value.trim();
+            const target = document.getElementById("modalReleaseTarget").value.trim();
+
+            if (id) {
+                const rel = boardData.releases.find(r => r.id === id);
+                if (rel) {
+                    rel.name = name;
+                    rel.targetDate = target;
+                }
+            } else {
+                boardData.releases.push({
+                    id: "rel-" + Date.now(),
+                    name: name,
+                    targetDate: target
+                });
+            }
+
+            saveData();
+            closeReleaseModal();
+        }
+
+        function deleteReleaseFromModal() {
+            const id = document.getElementById("modalReleaseIdField").value;
+            if (boardData.releases.length <= 1) {
+                alert("You must keep at least one Release swimlane.");
+                return;
+            }
+            if (confirm("Deleting this release will delete all story cards assigned to it. Continue?")) {
+                boardData.stories = boardData.stories.filter(s => s.releaseId !== id);
+                boardData.releases = boardData.releases.filter(r => r.id !== id);
+                saveData();
+                closeReleaseModal();
+            }
+        }
+
+        // --- EXPORT & IMPORT DATA ---
+        function exportJSON() {
+            const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(boardData, null, 2));
+            const downloadAnchor = document.createElement('a');
+            downloadAnchor.setAttribute("href", dataStr);
+            downloadAnchor.setAttribute("download", `story_map_export_${new Date().toISOString().slice(0,10)}.json`);
+            document.body.appendChild(downloadAnchor);
+            downloadAnchor.click();
+            downloadAnchor.remove();
+        }
+
+        function importJSON(event) {
+            const fileReader = new FileReader();
+            fileReader.onload = function(e) {
+                try {
+                    const parsed = JSON.parse(e.target.result);
+                    if (parsed.activities && parsed.tasks && parsed.releases && parsed.stories) {
+                        boardData = parsed;
+                        saveData();
+                        alert("Board loaded successfully!");
+                    } else {
+                        alert("Invalid JSON structure. Missing required story map arrays.");
+                    }
+                } catch (err) {
+                    alert("Error parsing uploaded JSON file.");
+                }
+            };
+            fileReader.readAsText(event.target.files[0]);
+        }
+
+        function applyFilters() {
+            renderBoard();
+        }
+
+        function escapeHtml(str) {
+            if (!str) return "";
+            return str.replace(/&/g, "&amp;")
+                      .replace(/</g, "&lt;")
+                      .replace(/>/g, "&gt;")
+                      .replace(/"/g, "&quot;")
+                      .replace(/'/g, "&#039;");
+        }
+
+        // INITIALIZE APP ON LOAD
+        window.onload = function() {
+            renderBoard();
+        };
+    </script>
+</body>
+</html>
